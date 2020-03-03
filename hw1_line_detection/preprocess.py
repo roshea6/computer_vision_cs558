@@ -34,7 +34,15 @@ def convolute(img, filt):
 						sum += filt[k][g] * img[i + k - offset][j + g - offset]
 				
 				# Put the sum into the correct spot in the matrix
-				h[i][j] = int(sum)
+				h[i][j] = sum
+
+			# Make sure image only contains values between 0 and 255
+			# if h[i][j] < 0:
+			# 	h[i][j] = 0
+			# elif h[i][j] > 255:
+			# 	h[i][j] = 255
+			# else:
+			# 	h[i][j] = h[i][j]
 
 	return h
 
@@ -95,13 +103,96 @@ def sobelFilterHoriz(img):
 
 	return sobel_x_img
 
-# Return the Hessian of the passed in arr
-def getHessian(arr):
-	pass
+# Calcultes the determinate of the Hessian of the passed in image and thresholds it
+def getHessian(img):
+	# Create the output image
+	ouput = np.zeros((img.shape[0], img.shape[1]))
+
+	# Get the second derivatives of the image
+	img_xx = sobelFilterHoriz(sobelFilterHoriz(img))
+	img_yy = sobelFilterVert(sobelFilterVert(img))
+	img_xy = sobelFilterHoriz(sobelFilterVert(img))
+
+	# cv2.imshow("XX", img_xx/255)
+	# cv2.waitKey(0)
+	# cv2.imshow("YY", img_yy/255)
+	# cv2.waitKey(0)
+	# cv2.imshow("XY", img_xy/255)
+	# cv2.waitKey(0)
+
+	# Hessian matrix (Just for visual reference)
+	# hess = [[img_xx, img_xy],
+	# 		[img_xy, img_yy]]
+
+	# Get determinant of the Hessian matrix
+	det = np.zeros((img.shape[0], img.shape[1]))
+	for i in range(img.shape[0]):
+		for j in range(img.shape[1]):
+			det[i][j] = img_xx[i][j]*img_yy[i][j] - img_xy[i][j]*img_xy[i][j]
+
+	cv2.imshow("Hessian Det", det/255)
+	cv2.waitKey(0)
+
+	print(det)
+
+	# Get max and min values to use for thresholding
+	max_val = np.amax(det)
+	min_val = np.amin(det)
+
+	# total = sum(sum(det))
+	# avg = total/(det.shape[0]*det.shape[1])
+	# print("Average: " + str(avg))
+
+	# print("Max val: " + str(max_val))
+	# print("Min val: " + str(min_val))
+
+	val_range = max_val - min_val
+
+	# Nomalize image
+	for i in range(det.shape[0]):
+		for j in range(det.shape[1]):
+			det[i][j] = (det[i][j] - min_val) * (255/val_range)
+
+	cv2.imshow("Norm Hessian Det", det/255)
+	cv2.waitKey(0)
+
+	# Threshold the determinant
+	for i in range(det.shape[0]):
+		for j in range(det.shape[1]):
+			# If the pixel value is lower than the threshold set it to 0
+			if det[i][j] < 150:
+				det[i][j] = 0
+			else:
+				det[i][j] = 255
+
+	cv2.imshow("Thresh Hessian Det", det/255)
+	cv2.waitKey(0)
+
+	suppressed = nonMaxSuppression(det)
+
+	cv2.imshow("Suppressed", suppressed)
+	cv2.waitKey(0)
 
 # Applies non maximum suppression to the passed in array
-def nonMaxSuppression(arr):
-	pass
+def nonMaxSuppression(img):
+	output = img
+
+	# Loop through the pixels in the image
+	for i in range(1, img.shape[0] - 1):
+		for j in range(1, img.shape[1] - 1):
+			# Check if the current pixel is not the largest in the surrounding 3x3 area
+			if img[i][j] != max(img[i-1][j-1], img[i-1][j], img[i-1][j+1], # First row
+								img[i][j-1], img[i][j], img[i][j+1], # Second row
+								img[i+1][j-1], img[i+1][j], img[i+1][j+1]): # Third row
+				# Pixel is not the largest so set it to 0
+				output[i][j] = 0
+			else:
+				# It is the max so set the rest to 0
+				for k in range(3):
+					for g in range(3):
+						if k != 1 and g != 1:
+							img[i + k -1][[j + g -1]] = 0
+	return output
 
 
 if __name__ == "__main__":
@@ -116,15 +207,32 @@ if __name__ == "__main__":
 
 	guas_img = gaussianFilter(img, 5, 1)
 
-	cv2.imshow("Guassian filtered", guas_img/255)
-	cv2.waitKey(0)
+	getHessian(guas_img)
 
-	sobel_y_img = sobelFilterVert(guas_img)
+	# cv2.imshow("Guassian filtered", guas_img/255)
+	# cv2.waitKey(0)
 
-	cv2.imshow("Sobel vert", sobel_y_img/255)
-	cv2.waitKey(0)
+	# sobel_y_img = sobelFilterVert(guas_img)
 
-	sobel_x_img = sobelFilterHoriz(guas_img)
+	# cv2.imshow("Sobel vert", sobel_y_img/255)
+	# cv2.waitKey(0)
 
-	cv2.imshow("Sobel horiz", sobel_x_img/255)
-	cv2.waitKey(0)
+	# sobel_yy_img = sobelFilterVert(sobel_y_img)
+
+	# cv2.imshow("Sobel vert 2", sobel_yy_img/255)
+	# cv2.waitKey(0)
+
+	# sobel_x_img = sobelFilterHoriz(guas_img)
+
+	# cv2.imshow("Sobel horiz", sobel_x_img/255)
+	# cv2.waitKey(0)
+
+	# sobel_xx_img = sobelFilterHoriz(sobel_x_img)
+
+	# cv2.imshow("Sobel horiz 2", sobel_xx_img/255)
+	# cv2.waitKey(0)
+
+	# sobel_xy_img = sobelFilterHoriz(sobel_y_img)
+
+	# cv2.imshow("Sobel xy", sobel_xy_img/255)
+	# cv2.waitKey(0)
