@@ -10,6 +10,8 @@
 import cv2 # Image loading, writing, and displaying tools
 import numpy as np # Matrix functions 
 import math
+import random
+import time
 
 # Function to apply a filter to an image
 def convolute(img, filt):
@@ -35,14 +37,6 @@ def convolute(img, filt):
 				
 				# Put the sum into the correct spot in the matrix
 				h[i][j] = sum
-
-			# Make sure image only contains values between 0 and 255
-			# if h[i][j] < 0:
-			# 	h[i][j] = 0
-			# elif h[i][j] > 255:
-			# 	h[i][j] = 255
-			# else:
-			# 	h[i][j] = h[i][j]
 
 	return h
 
@@ -130,21 +124,12 @@ def getHessian(img):
 		for j in range(img.shape[1]):
 			det[i][j] = img_xx[i][j]*img_yy[i][j] - img_xy[i][j]*img_xy[i][j]
 
-	cv2.imshow("Hessian Det", det/255)
-	cv2.waitKey(0)
-
-	print(det)
+	# cv2.imshow("Hessian Det", det/255)
+	# cv2.waitKey(0)
 
 	# Get max and min values to use for thresholding
 	max_val = np.amax(det)
 	min_val = np.amin(det)
-
-	# total = sum(sum(det))
-	# avg = total/(det.shape[0]*det.shape[1])
-	# print("Average: " + str(avg))
-
-	# print("Max val: " + str(max_val))
-	# print("Min val: " + str(min_val))
 
 	val_range = max_val - min_val
 
@@ -153,8 +138,8 @@ def getHessian(img):
 		for j in range(det.shape[1]):
 			det[i][j] = (det[i][j] - min_val) * (255/val_range)
 
-	cv2.imshow("Norm Hessian Det", det/255)
-	cv2.waitKey(0)
+	# cv2.imshow("Norm Hessian Det", det/255)
+	# cv2.waitKey(0)
 
 	# Threshold the determinant
 	for i in range(det.shape[0]):
@@ -165,13 +150,15 @@ def getHessian(img):
 			else:
 				det[i][j] = 255
 
-	cv2.imshow("Thresh Hessian Det", det/255)
-	cv2.waitKey(0)
+	# cv2.imshow("Thresh Hessian Det", det/255)
+	# cv2.waitKey(0)
 
 	suppressed = nonMaxSuppression(det)
 
 	cv2.imshow("Suppressed", suppressed)
 	cv2.waitKey(0)
+
+	return suppressed
 
 # Applies non maximum suppression to the passed in array
 def nonMaxSuppression(img):
@@ -188,26 +175,156 @@ def nonMaxSuppression(img):
 				output[i][j] = 0
 			else:
 				# It is the max so set the rest to 0
-				for k in range(3):
-					for g in range(3):
-						if k != 1 and g != 1:
-							img[i + k -1][[j + g -1]] = 0
+				for k in range(0, 3):
+					for g in range(0, 3):
+						if not (k == 1 and g == 1):
+							output[i + k -1][[j + g -1]] = 0
 	return output
 
+# Function to get a list of all the pixels with values above a certain threshold
+def getPoints(img, threshold):
+	# List of x, y pairs stored as tuples
+	points = []
 
-if __name__ == "__main__":
-	# Get the image
-	img = cv2.imread("road.png")
+	# Loop through all pixels in image and get all coordinates of pixels with value above threshold
+	for i in range(0, img.shape[0]):
+		for j in range(0, img.shape[1]):
+			if img[i][j] > threshold:
+				points.append((i, j))
 
-	img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+	return points
 
-	cv2.imshow("Image", img)
+# Returns two random points from the list of passed in points
+def pickRandPoints(pointsList):
+	# Get the random index of the first point
+	idx1 = random.randint(0, len(pointsList) - 1)
 
+	# Pick another radom index that id different from the first one
+	idx2 = random.randint(0, len(pointsList) - 1)
+
+	# Ensure that the two indexes are not the same
+	while(idx2 == idx1):
+		idx2 = random.randint(0, len(pointsList) - 1)
+
+	# Get the random points
+	temp_point1 = pointsList[idx1]
+	temp_point2 = pointsList[idx2]
+
+	# Rearrange so the points are in x, y
+	point1 = (temp_point1[1], temp_point1[0])
+	point2 = (temp_point2[1], temp_point2[0])
+
+	return point1, point2
+
+# Get the slope m and intercept c of a line based on the two passed in points
+def getLine(point1, point2):
+	# Get x1 and y1 from the correct indexes
+	x1 = point1[0]
+	y1 = point1[1]
+
+	# Get x2 and y2 from the correct indexes
+	x2 = point2[0]
+	y2 = point2[1]
+
+	# Check if x1 and x2 and the same (AKA points make a vertical line)
+	if(x1 == x2):
+		# Set slope to infinity
+		m = math.inf
+	else:
+		m = (y2 - y1)/(x2 - x1)
+
+	# Find the intercept c using the point slope intercept formula
+	# y - y1 = m(x - x1)
+	c = -m*x1 + y1
+
+	print("Line: y = " + str(m) + "x + " + str(c))
+
+	return m, c
+
+# Gets the perpendicular distance between a point and a line
+def getDistFromLine(m, c, x, y):
+	# Get the point on the line where the line from the point to the line intersects
+	line_x = (x + (m*y) - (m*c))/(1 + m**2)
+	line_y = ((m*x) + ((m**2)*y) - ((m**2)*c))/(1 + m**2) + c
+
+	# Calculate the distance between the point on the line (line_x, line_y) and point (x, y)
+	dist = math.sqrt(((line_x - x)**2) + ((line_y - y)**2))
+
+	return dist, line_x, line_y
+
+# Run the RANSAC algorithm on the passed in image to determine the 4 best lines in the image
+def RANSAC(img):
+	# Get the list of points to pick from
+	points = getPoints(img, 0)
+
+	print("Number of point: " + str(len(points)))
+
+	# Get 2 random points from the list
+	point1, point2 = pickRandPoints(points)
+
+	print(point1)
+	print(point2)
+
+	cv2.line(img, point1, point2, (255, 255, 255), thickness=3)
+	cv2.imshow("img", img)
 	cv2.waitKey(0)
 
-	guas_img = gaussianFilter(img, 5, 1)
+	m, c = getLine(point1, point2)
 
-	getHessian(guas_img)
+	for point in points:
+		# Get distance between line and point
+		# print(point)
+		dist, line_x, line_y = getDistFromLine(m, c, point[1], point[0])
+
+		if dist < 100:
+			print("Distance: " + str(dist))
+			print(point)
+			cv2.line(img, (int(line_x), int(line_y)) , (point[1], point[0]), (255, 255, 255), thickness=1)
+			cv2.imshow("Lines", img)
+			key = cv2.waitKey(0)
+
+			if key == 113:
+				exit()
+
+
+
+	# point3, point4 = pickRandPoints(points)
+
+	# print(point3)
+
+	# dist = getDistFromLine(m, c, point3[1], point3[0])
+
+	print(dist)
+	
+
+if __name__ == "__main__":
+	# Initialize the random seed
+	random.seed(time.time())
+	
+	# Get the image
+	# img = cv2.imread("road.png")
+
+	# img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+	# cv2.imshow("Image", img)
+
+	# cv2.waitKey(0)
+
+	# # sup = cv2.imread("Suppressed_hessian.png")
+	# # cv2.imshow("Sup", sup)
+	# # cv2.waitKey(0)
+
+	# guas_img = gaussianFilter(img, 5, 1)
+
+	# pot_points = getHessian(guas_img)
+
+	pot_points = cv2.imread("Suppressed_hessian.png")
+	pot_points = cv2.cvtColor(pot_points, cv2.COLOR_BGR2GRAY)
+
+	cv2.imshow("Supressed", pot_points)
+	cv2.waitKey(0)
+
+	RANSAC(pot_points)
 
 	# cv2.imshow("Guassian filtered", guas_img/255)
 	# cv2.waitKey(0)
