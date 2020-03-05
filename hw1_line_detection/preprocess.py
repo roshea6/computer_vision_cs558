@@ -243,7 +243,7 @@ def getLine(point1, point2):
 
 # Gets the perpendicular distance between a point and a line
 def getDistFromLine(m, c, x, y):
-	# Get the point on the line where the line from the point to the line intersects
+	# Get the point on the line where the perpendicular line from the point to the line intersects
 	line_x = (x + (m*y) - (m*c))/(1 + m**2)
 	line_y = ((m*x) + ((m**2)*y) - ((m**2)*c))/(1 + m**2) + c
 
@@ -253,39 +253,56 @@ def getDistFromLine(m, c, x, y):
 	return dist, line_x, line_y
 
 # Run the RANSAC algorithm on the passed in image to determine the 4 best lines in the image
-def RANSAC(img):
+def RANSAC(img, num_points):
 	# Get the list of points to pick from
 	points = getPoints(img, 0)
 
 	print("Number of point: " + str(len(points)))
 
-	# Get 2 random points from the list
-	point1, point2 = pickRandPoints(points)
+	while(True):
+		# Get 2 random points from the list
+		point1, point2 = pickRandPoints(points)
 
-	print(point1)
-	print(point2)
+		# Show the line on the image
+		# cv2.line(img, point1, point2, (255, 255, 255), thickness=3)
+		# cv2.imshow("img", img)
+		# cv2.waitKey(0)
 
-	cv2.line(img, point1, point2, (255, 255, 255), thickness=3)
-	cv2.imshow("img", img)
-	cv2.waitKey(0)
+		# Get the model for the line between the two points
+		m, c = getLine(point1, point2)
 
-	m, c = getLine(point1, point2)
+		# if abs(m) > .50:
+		# 	continue
 
-	for point in points:
-		# Get distance between line and point
-		# print(point)
-		dist, line_x, line_y = getDistFromLine(m, c, point[1], point[0])
+		# List to hold all the points that are close enough to line model
+		inliers = []
 
-		if dist < 100:
-			print("Distance: " + str(dist))
-			print(point)
-			cv2.line(img, (int(line_x), int(line_y)) , (point[1], point[0]), (255, 255, 255), thickness=1)
-			cv2.imshow("Lines", img)
-			key = cv2.waitKey(0)
+		for point in points:
+			# Get distance between line and point
+			# print(point)
+			dist, line_x, line_y = getDistFromLine(m, c, point[1], point[0])
 
-			if key == 113:
+			# Check if the point is close enough to the line 
+			if dist < 3:
+				# Add the point to the array
+				inliers.append((point[1], point[0]))
+
+		# Check if the number of inliers for the line is above our specified needed amount
+		if(len(inliers) > num_points):
+			# Show the line on the image
+			cv2.line(img, point1, point2, (255, 255, 255), thickness=3)
+			cv2.imshow("img", img)
+			key = cv2.waitKey(1)
+
+			if key == ord('q'):
 				exit()
 
+			# Remove the inliers that were used to prevent reuse
+			for point in inliers:
+				# Remove the point
+				points.remove((point[1], point[0]))
+
+			
 
 
 	# point3, point4 = pickRandPoints(points)
@@ -324,7 +341,7 @@ if __name__ == "__main__":
 	cv2.imshow("Supressed", pot_points)
 	cv2.waitKey(0)
 
-	RANSAC(pot_points)
+	RANSAC(pot_points, 40)
 
 	# cv2.imshow("Guassian filtered", guas_img/255)
 	# cv2.waitKey(0)
