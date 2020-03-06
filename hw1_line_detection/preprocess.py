@@ -107,25 +107,11 @@ def getHessian(img):
 	img_yy = sobelFilterVert(sobelFilterVert(img))
 	img_xy = sobelFilterHoriz(sobelFilterVert(img))
 
-	# cv2.imshow("XX", img_xx/255)
-	# cv2.waitKey(0)
-	# cv2.imshow("YY", img_yy/255)
-	# cv2.waitKey(0)
-	# cv2.imshow("XY", img_xy/255)
-	# cv2.waitKey(0)
-
-	# Hessian matrix (Just for visual reference)
-	# hess = [[img_xx, img_xy],
-	# 		[img_xy, img_yy]]
-
 	# Get determinant of the Hessian matrix
 	det = np.zeros((img.shape[0], img.shape[1]))
 	for i in range(img.shape[0]):
 		for j in range(img.shape[1]):
 			det[i][j] = img_xx[i][j]*img_yy[i][j] - img_xy[i][j]*img_xy[i][j]
-
-	# cv2.imshow("Hessian Det", det/255)
-	# cv2.waitKey(0)
 
 	# Get max and min values to use for thresholding
 	max_val = np.amax(det)
@@ -138,9 +124,6 @@ def getHessian(img):
 		for j in range(det.shape[1]):
 			det[i][j] = (det[i][j] - min_val) * (255/val_range)
 
-	# cv2.imshow("Norm Hessian Det", det/255)
-	# cv2.waitKey(0)
-
 	# Threshold the determinant
 	for i in range(det.shape[0]):
 		for j in range(det.shape[1]):
@@ -149,9 +132,6 @@ def getHessian(img):
 				det[i][j] = 0
 			else:
 				det[i][j] = 255
-
-	# cv2.imshow("Thresh Hessian Det", det/255)
-	# cv2.waitKey(0)
 
 	suppressed = nonMaxSuppression(det)
 
@@ -190,7 +170,7 @@ def getPoints(img, threshold):
 	for i in range(0, img.shape[0]):
 		for j in range(0, img.shape[1]):
 			if img[i][j] > threshold:
-				points.append((i, j))
+				points.append((j, i))
 
 	return points
 
@@ -210,11 +190,7 @@ def pickRandPoints(pointsList):
 	temp_point1 = pointsList[idx1]
 	temp_point2 = pointsList[idx2]
 
-	# Rearrange so the points are in x, y
-	point1 = (temp_point1[1], temp_point1[0])
-	point2 = (temp_point2[1], temp_point2[0])
-
-	return point1, point2
+	return temp_point1, temp_point2
 
 # Get the slope m and intercept c of a line based on the two passed in points
 def getLine(point1, point2):
@@ -237,7 +213,7 @@ def getLine(point1, point2):
 	# y - y1 = m(x - x1)
 	c = -m*x1 + y1
 
-	print("Line: y = " + str(m) + "x + " + str(c))
+	# print("Line: y = " + str(m) + "x + " + str(c))
 
 	return m, c
 
@@ -253,65 +229,78 @@ def getDistFromLine(m, c, x, y):
 	return dist, line_x, line_y
 
 # Run the RANSAC algorithm on the passed in image to determine the 4 best lines in the image
-def RANSAC(img, num_points):
+def RANSAC(img, norm_img, num_lines, num_points):
 	# Get the list of points to pick from
 	points = getPoints(img, 0)
 
-	print("Number of point: " + str(len(points)))
+	# Variable to keep track of how many lines we've found
+	lines = 0
 
-	while(True):
+	while(lines < num_lines):
 		# Get 2 random points from the list
 		point1, point2 = pickRandPoints(points)
-
-		# Show the line on the image
-		# cv2.line(img, point1, point2, (255, 255, 255), thickness=3)
-		# cv2.imshow("img", img)
-		# cv2.waitKey(0)
 
 		# Get the model for the line between the two points
 		m, c = getLine(point1, point2)
 
-		# if abs(m) > .50:
-		# 	continue
-
 		# List to hold all the points that are close enough to line model
 		inliers = []
 
+		# Variable for the largest distance a line can have based on its inliers
+		max_line_size = 0
+
+		# Loop through all the points to determine inliers
 		for point in points:
 			# Get distance between line and point
-			# print(point)
-			dist, line_x, line_y = getDistFromLine(m, c, point[1], point[0])
+			dist, line_x, line_y = getDistFromLine(m, c, point[0], point[1])
 
 			# Check if the point is close enough to the line 
 			if dist < 3:
 				# Add the point to the array
-				inliers.append((point[1], point[0]))
+				inliers.append((point[0], point[1]))
 
 		# Check if the number of inliers for the line is above our specified needed amount
 		if(len(inliers) > num_points):
-			# Show the line on the image
-			cv2.line(img, point1, point2, (255, 255, 255), thickness=3)
-			cv2.imshow("img", img)
-			key = cv2.waitKey(1)
-
-			if key == ord('q'):
-				exit()
+			# Increase number of good fit lines we've found
+			lines += 1
 
 			# Remove the inliers that were used to prevent reuse
 			for point in inliers:
 				# Remove the point
-				points.remove((point[1], point[0]))
+				points.remove((point[0], point[1]))
 
+				# Loop through the rest of the points to find the two points with 
+				# Largest distance betwwen them
+				for secondary_point in inliers:
+					# Calculate the distance between the two points
+					point_dist = math.sqrt(((point[0] - secondary_point[0])**2) + ((point[1] - secondary_point[1])**2))
+
+					# Determine if the line made by the two points is bigger
+					if point_dist > max_line_size:
+						max_line_size = point_dist
+
+						# Variable to hold the two points that make the largest line for a set of inliers
+						most_dist_points = ((point[0], point[1]), (secondary_point[0], secondary_point[1]))
+
+			# Plot the line from one most distant inlier to the other on the image with points
+			cv2.line(img, most_dist_points[0], most_dist_points[1], (255, 255, 255), thickness=1)
+
+			# Plot the line from one most distant inlier to the other on the normal image
+			cv2.line(norm_img, most_dist_points[0], most_dist_points[1], (0, 0, 0), thickness=2)
 			
+		# Once the four strongest lines have been found show them on the image
+		if lines == 4:
+			cv2.imshow("img", img)
+			key = cv2.waitKey(0)
 
+			if key == ord('q'):
+				exit()
 
-	# point3, point4 = pickRandPoints(points)
+			cv2.imshow("Normal", norm_img)
+			key = cv2.waitKey(0)
 
-	# print(point3)
-
-	# dist = getDistFromLine(m, c, point3[1], point3[0])
-
-	print(dist)
+			if key == ord('q'):
+				exit()
 	
 
 if __name__ == "__main__":
@@ -319,7 +308,7 @@ if __name__ == "__main__":
 	random.seed(time.time())
 	
 	# Get the image
-	# img = cv2.imread("road.png")
+	img = cv2.imread("road.png")
 
 	# img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
@@ -341,32 +330,4 @@ if __name__ == "__main__":
 	cv2.imshow("Supressed", pot_points)
 	cv2.waitKey(0)
 
-	RANSAC(pot_points, 40)
-
-	# cv2.imshow("Guassian filtered", guas_img/255)
-	# cv2.waitKey(0)
-
-	# sobel_y_img = sobelFilterVert(guas_img)
-
-	# cv2.imshow("Sobel vert", sobel_y_img/255)
-	# cv2.waitKey(0)
-
-	# sobel_yy_img = sobelFilterVert(sobel_y_img)
-
-	# cv2.imshow("Sobel vert 2", sobel_yy_img/255)
-	# cv2.waitKey(0)
-
-	# sobel_x_img = sobelFilterHoriz(guas_img)
-
-	# cv2.imshow("Sobel horiz", sobel_x_img/255)
-	# cv2.waitKey(0)
-
-	# sobel_xx_img = sobelFilterHoriz(sobel_x_img)
-
-	# cv2.imshow("Sobel horiz 2", sobel_xx_img/255)
-	# cv2.waitKey(0)
-
-	# sobel_xy_img = sobelFilterHoriz(sobel_y_img)
-
-	# cv2.imshow("Sobel xy", sobel_xy_img/255)
-	# cv2.waitKey(0)
+	RANSAC(pot_points, img, 4, 40)
