@@ -1,9 +1,12 @@
 """
-	Description: Part 1 of hw1, preprocess the image by detecting potential points on the lines.
-	Apply a Gaussian filter first and use the Sobel filters as derivative operators.
-	Threshold the determinant of the Hessian and then apply non-maximum suppression in 3 × 3
-	neighborhoods. Ignore pixels for which any of the filters falls even partially out of the image
-	boundaries.
+	Ryan O'Shea
+
+	Description: Computer Vision Homework 1 Line detection. 
+	1. Apply a guassian blur to the image then extract key points using Hessian detection
+	2. Use the RANSAC algorithm to find 4 straight lines in the extracted key points with the most support in the image
+	3. Apply a Hough transform to the extracted points to detect 4 straight lines with the strongest support in the image
+
+	I pledge my honor that I have abided by the Stevens Honor System
 
 """
 
@@ -301,6 +304,49 @@ def RANSAC(img, norm_img, num_lines, num_points):
 
 			if key == ord('q'):
 				exit()
+
+# Applies a Hough transform to the passed in image in order to find the 4 strongest supported lines
+def HoughTran(img):
+	# Get number of rows and columns
+	rows = img.shape[0]
+	cols = img.shape[1]
+
+	# Maximum and minimum values that rho can 
+	# According to equation ρ = x cos θ + y sin θ
+	max_val = rows + cols
+	min_val = -cols
+
+	# Because we can't directly plot negative rho values we need to remap the range of rho
+	# to be 0 to range and then use an offset of the highest negative value to properly
+	# get the indexes of points
+	offset = -min_val
+
+	val_range = max_val - min_val
+
+	# Accumulator
+	accum = np.zeros((val_range, 181))
+
+	# Get the feature points from the image
+	points = getPoints(img, 0)
+
+	# Loop through all the points
+	for point in points:
+		x = point[0]
+		y = point[1]
+
+		# Loop through all the angles
+		for angle in range(0, 181):
+			# Get angle in radians
+			rads = math.radians(angle)
+			# Calculate rho
+			rho = int(x*math.cos(rads) + y*math.sin(rads) + offset)
+
+			# Add votes to the rho, theta pair in the accumulator
+			accum[rho][angle] += 20
+
+	cv2.imshow("Accumulator", accum/255)
+	cv2.waitKey(0)
+
 	
 
 if __name__ == "__main__":
@@ -330,4 +376,6 @@ if __name__ == "__main__":
 	cv2.imshow("Supressed", pot_points)
 	cv2.waitKey(0)
 
-	RANSAC(pot_points, img, 4, 40)
+	# RANSAC(pot_points, img, 4, 40)
+
+	HoughTran(pot_points)
