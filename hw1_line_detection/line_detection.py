@@ -68,15 +68,8 @@ def gaussianFilter(img, size, std_dev):
 			# The x and y values to pass into the Guassian value function are the x and 
 			gaus_filt[i][j] = guassianValues(abs(center - i), abs(center - j), std_dev)
 
-	print(gaus_filt)
-
-	# Apply the filter to the image
-	# cv_filtered = cv2.filter2D(img, -1, gaus_filt)
-	# cv2.imwrite("cv_filtered.png", cv_filtered)
-
+	# Apply the guassian filter to the image
 	filtered = convolute(arr, gaus_filt)
-
-	cv2.imwrite("guassian_filtered.png", filtered)
 
 	return filtered
 
@@ -136,10 +129,8 @@ def getHessian(img):
 			else:
 				det[i][j] = 255
 
+	# Apply non maximum suppression to the image
 	suppressed = nonMaxSuppression(det)
-
-	cv2.imshow("Suppressed", suppressed)
-	cv2.waitKey(0)
 
 	return suppressed
 
@@ -216,8 +207,6 @@ def getLine(point1, point2):
 	# y - y1 = m(x - x1)
 	c = -m*x1 + y1
 
-	# print("Line: y = " + str(m) + "x + " + str(c))
-
 	return m, c
 
 # Gets the perpendicular distance between a point and a line
@@ -293,20 +282,20 @@ def RANSAC(img, norm_img, num_lines, num_points):
 			
 		# Once the four strongest lines have been found show them on the image
 		if lines == 4:
-			cv2.imshow("img", img)
+			cv2.imshow("RANSAC point image", img)
 			key = cv2.waitKey(0)
 
 			if key == ord('q'):
 				exit()
 
-			cv2.imshow("Normal", norm_img)
+			cv2.imshow("RANSAC Normal image", norm_img)
 			key = cv2.waitKey(0)
 
 			if key == ord('q'):
 				exit()
 
 # Applies a Hough transform to the passed in image in order to find the 4 strongest supported lines
-def HoughTran(img):
+def HoughTran(img, norm_img, num_lines):
 	# Get number of rows and columns
 	rows = img.shape[0]
 	cols = img.shape[1]
@@ -342,11 +331,67 @@ def HoughTran(img):
 			rho = int(x*math.cos(rads) + y*math.sin(rads) + offset)
 
 			# Add votes to the rho, theta pair in the accumulator
-			accum[rho][angle] += 20
+			accum[rho][angle] += 20 # Add 20 instead of 1 so it displays nicely
 
+	# Show image
 	cv2.imshow("Accumulator", accum/255)
 	cv2.waitKey(0)
 
+	# Current number of lines drawn
+	lines = 0
+
+	# Highest value in the hough transform
+	highest = 0
+
+	# Apply non maximum suppression to the acumulator 
+	suppressed = nonMaxSuppression(accum)
+	cv2.imshow("Suppresed Accumulator", suppressed/255)
+	cv2.waitKey(0)
+
+	# Loop until we've plotted the desired number of lines
+	while lines < num_lines:
+		# Find the max value in the hough transform which should correclate to the parameters of the strongest line
+		for i in range(suppressed.shape[0]):
+			for j in range(suppressed.shape[1]):
+				if suppressed[i][j] > highest:
+					max_params = (j, i) # Store in form (theta, rho)
+					highest = suppressed[i][j]
+		
+		# Reset highest value back to 0
+		highest = 0
+
+		# Set the pixels around the chosen model equal to 0
+		for i in range(-10, 10):
+			for j in range(-10, 10):
+				suppressed[max_params[1] + i][max_params[0] + j] = 0
+
+		# Get theta and rho from max_params
+		theta = math.radians(max_params[0])
+		rho = max_params[1] - offset # Undo the offset we added to get the true value of rho
+
+		# Get line parameters
+		a = math.cos(theta)
+		b = math.sin(theta)
+		x0 = a*rho
+		y0 = b*rho
+
+		# Generate two points that will span the image using the line parameters
+		pt1 = (int(x0 + 1000*(-b)), int(y0 + 1000*(a)))
+		pt2 = (int(x0 - 1000*(-b)), int(y0 - 1000*(a)))
+
+		# Draw the line on the point image
+		cv2.line(img, pt1, pt2, (255, 255, 255), thickness=1)
+
+		# Draw the line on the normal image
+		cv2.line(norm_img, pt1, pt2, (0, 0, 0), thickness=3)
+
+		lines += 1
+
+	cv2.imshow("Hough Lines", img)
+	cv2.waitKey(0)
+
+	cv2.imshow("Hough Lines Original image", norm_img)
+	cv2.waitKey(0)
 	
 
 if __name__ == "__main__":
@@ -356,26 +401,24 @@ if __name__ == "__main__":
 	# Get the image
 	img = cv2.imread("road.png")
 
-	# img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+	# Convert to graysale
+	img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-	# cv2.imshow("Image", img)
-
-	# cv2.waitKey(0)
-
-	# # sup = cv2.imread("Suppressed_hessian.png")
-	# # cv2.imshow("Sup", sup)
-	# # cv2.waitKey(0)
-
-	# guas_img = gaussianFilter(img, 5, 1)
-
-	# pot_points = getHessian(guas_img)
-
-	pot_points = cv2.imread("Suppressed_hessian.png")
-	pot_points = cv2.cvtColor(pot_points, cv2.COLOR_BGR2GRAY)
-
-	cv2.imshow("Supressed", pot_points)
+	cv2.imshow("Input Image", img)
 	cv2.waitKey(0)
 
-	# RANSAC(pot_points, img, 4, 40)
+	# Apply a 5x5 Guassian filter to the image
+	guas_img = gaussianFilter(img, 5, 1)
 
-	HoughTran(pot_points)
+	# Get Key points in the image using a Hessian detector
+	pot_points = getHessian(guas_img)
+
+	# Show the key points
+	cv2.imshow("Supressed key points", pot_points)
+	cv2.waitKey(0)
+
+	# Run the RANSAC algorithm on the key points to find the 4 best lines with at least 40 inliers
+	RANSAC(pot_points, img, 4, 40)
+
+	# Apply a Hough transform to the image to get the 4 best lines
+	HoughTran(pot_points, img, 4)
