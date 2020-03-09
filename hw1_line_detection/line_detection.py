@@ -261,6 +261,15 @@ def RANSAC(img, norm_img, num_lines, num_points):
 				# Remove the point
 				points.remove((point[0], point[1]))
 
+				# Plot the inliers as 3x3 squares
+				for i in range(0, 3):
+					for j in range(0, 3):
+						# Check if the pixel is out of bounds
+						if ((point[0] + i - 1) > img.shape[0]) or ((point[1] + j - 1) > img.shape[1]):
+							continue
+						else:
+							img[point[1] + j - 1][point[0] + i - 1] = 255
+
 				# Loop through the rest of the points to find the two points with 
 				# Largest distance betwwen them
 				for secondary_point in inliers:
@@ -413,12 +422,15 @@ if __name__ == "__main__":
 	# Get Key points in the image using a Hessian detector
 	pot_points = getHessian(guas_img)
 
+	# pot_points = cv2.imread("Suppressed_hessian.png")
+	# pot_points = cv2.cvtColor(pot_points, cv2.COLOR_BGR2GRAY)
+
 	# Show the key points
-	cv2.imshow("Supressed key points", pot_points)
+	cv2.imshow("Supressed key points", pot_points.copy())
 	cv2.waitKey(0)
 
 	# Run the RANSAC algorithm on the key points to find the 4 best lines with at least 40 inliers
-	RANSAC(pot_points, img, 4, 40)
+	RANSAC(pot_points.copy(), img.copy(), 4, 40)
 
 	# Apply a Hough transform to the image to get the 4 best lines
-	HoughTran(pot_points, img, 4)
+	HoughTran(pot_points.copy(), img.copy(), 4)
