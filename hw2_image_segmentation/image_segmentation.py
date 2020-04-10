@@ -158,7 +158,7 @@ def SLIC(img, block_size=50):
 			if ((i - block_size/2) % block_size) == 0 and ((j - block_size/2) % block_size) == 0 and i != 0 and j != 0:
 				centroids.append([i, j])
 
-	print(centroids)
+	# print(centroids)
 
 	# Find ideal centroid position based on color gradient magnitudes
 	for z in range(len(centroids)):
@@ -183,16 +183,24 @@ def SLIC(img, block_size=50):
 		# Update with the new ideal centroid
 		centroids[z] = new_coord
 
-	print(centroids)
+	# print(centroids)
+
+	clustered_img = SLICkMeans(img, centroids)
+
+	cv2.imshow("SLIC K means", clustered_img)
+	cv2.waitKey(0)
 
 # Returns the Euclidean distance between two pixels
-def getColorDist(x1, y1, r1, g1, b1, x2, y2, r2, g2, b2):
+def getEuclidDist(x1, y1, r1, g1, b1, x2, y2, r2, g2, b2):
 	# Get individual color distances squared
 	red_dist = (float(r1)-float(r2))**2
 	green_dist = (float(g1)-float(g2))**2
 	blue_dist = (float(b1)-float(b2))**2
 
-	distance = math.sqrt(red_dist + green_dist + blue_dist)
+	x_dist = ((float(x1)-float(x2))**2)/2
+	y_dist = ((float(y1)-float(y2))**2)/2
+
+	distance = math.sqrt(red_dist + green_dist + blue_dist + x_dist + y_dist)
 
 	return distance
 
@@ -213,7 +221,7 @@ def SLICkMeans(img, centroids):
 		y = centroid[0]
 
 		# Center has form [x, y, r, g, b]
-		centers.append(x, y, img[y][x][2], img[y][x][1], img[y][x][0])
+		centers.append([x, y, img[y][x][2], img[y][x][1], img[y][x][0]])
 
 	# Loop until clusters have converged
 	while(converged == False):
@@ -223,6 +231,8 @@ def SLICkMeans(img, centroids):
 		for i in range(len(centroids)):
 			# Append an empty list
 			clusters.append([])
+
+		print(clusters)
 
 		# Loop through the image and assign each pixel to its closest cluster center according to color
 		for i in range(img.shape[0]):
@@ -237,12 +247,12 @@ def SLICkMeans(img, centroids):
 				# Check distance between pixel color and colors of each color center
 				for x in range(len(clusters)):
 					# Get coordinates of a cluster center
-					centers = centers[x]
+					center = centers[x]
 
 					# Get the individual colors values for the center.
-					cent_r = centers[2]
-					cent_g = centers[3]
-					cent_b = centers[4]
+					cent_r = center[2]
+					cent_g = center[3]
+					cent_b = center[4]
 
 					# Get the individual colors values for the pixel. OpenCV stores images as BGR by default
 					# Index images using the coordinate pair as (y, x) or (rows, cols)
@@ -250,7 +260,7 @@ def SLICkMeans(img, centroids):
 					pix_g = img[i][j][1]
 					pix_b = img[i][j][0]
 
-					new_dist = getEuclidDist(cent_r, cent_g, cent_b, pix_r, pix_g, pix_b)
+					new_dist = getEuclidDist(center[0], center[1], cent_r, cent_g, cent_b, j, i, pix_r, pix_g, pix_b)
 
 					# Check if new color distance is smaller than current smallest color distance to a center
 					if new_dist < dist:
@@ -264,6 +274,9 @@ def SLICkMeans(img, centroids):
 		# Loop through clusters to find the new ideal cluster center
 		for i in range(len(clusters)):
 			cluster = clusters[i]
+
+			if len(cluster) == 0:
+				continue
 
 			# Variables to hold average pixel colors
 			avg_r = 0
