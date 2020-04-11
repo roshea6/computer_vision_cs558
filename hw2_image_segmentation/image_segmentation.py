@@ -232,7 +232,7 @@ def SLICkMeans(img, centroids):
 			# Append an empty list
 			clusters.append([])
 
-		print(clusters)
+		# print(clusters)
 
 		# Loop through the image and assign each pixel to its closest cluster center according to color
 		for i in range(img.shape[0]):
@@ -345,17 +345,17 @@ def addBorders(img):
 if __name__ == "__main__":
 
 	# Read in the image to perform K means clustering on
-	# k_means_img = cv2.imread("white-tower.png")
+	k_means_img = cv2.imread("white-tower.png")
 
-	# cv2.imshow("Before K means", k_means_img)
-	# cv2.waitKey(0)
+	cv2.imshow("Before K means", k_means_img)
+	cv2.waitKey(0)
 
 	# print(k_means_img.shape)
 
-	# k_clustered_img = kMeansClustering(k_means_img, 10)
+	k_clustered_img = kMeansClustering(k_means_img, 10)
 
-	# cv2.imshow("After K means", k_clustered_img)
-	# cv2.waitKey(0)
+	cv2.imshow("After K means", k_clustered_img)
+	cv2.waitKey(0)
 
 	# Read in the image to perform SLIC on
 	pre_slic_img = cv2.imread("wt_slic.png")
