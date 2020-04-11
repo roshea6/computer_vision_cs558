@@ -187,8 +187,7 @@ def SLIC(img, block_size=50):
 
 	clustered_img = SLICkMeans(img, centroids)
 
-	cv2.imshow("SLIC K means", clustered_img)
-	cv2.waitKey(0)
+	return clustered_img
 
 # Returns the Euclidean distance between two pixels
 def getEuclidDist(x1, y1, r1, g1, b1, x2, y2, r2, g2, b2):
@@ -203,6 +202,7 @@ def getEuclidDist(x1, y1, r1, g1, b1, x2, y2, r2, g2, b2):
 	distance = math.sqrt(red_dist + green_dist + blue_dist + x_dist + y_dist)
 
 	return distance
+
 
 # Performs K means clustering on the input image using the passed in centroid as the centers
 # Also uses 5D space [x, y, r, g, b] for distance calculation
@@ -319,6 +319,28 @@ def SLICkMeans(img, centroids):
 			output[point[1]][point[0]][0] = center[4] # Set Blue
 
 	return output
+
+# Adds black borders to all segments by turning every pixel that touches two or more segments black
+def addBorders(img):
+	output = img.copy()
+
+	# Loop through the pixels in the image and find which ones touch more than one segment
+	for i in range(img.shape[0] - 1):
+		for j in range(img.shape[1] - 1):
+			# Check if we are at the edge of the image
+			if i == 0 or j == 0:
+				continue
+			else:
+				# Check the 3x3 area around the pixel to see if any of them are different
+				for x in range(-1, 1):
+					for y in range(-1, 1):
+						# If the pixel differs from one of its neighbors turn it black
+						if (img[i][j][0] == img[i+x][j+y][0]) and (img[i][j][1] == img[i+x][j+y][1]) and (img[i][j][2] == img[i+x][j+y][2]):
+							continue
+						else:
+							output[i][j] = [0, 0, 0]
+
+	return output
 	
 if __name__ == "__main__":
 
@@ -343,3 +365,10 @@ if __name__ == "__main__":
 
 	post_slic_img = SLIC(pre_slic_img, 50)
 
+	cv2.imshow("Post SLIC", post_slic_img)
+	cv2.waitKey(0)
+
+	post_borders = addBorders(post_slic_img)
+
+	cv2.imshow("Post Borders", post_borders)
+	cv2.waitKey(0)
