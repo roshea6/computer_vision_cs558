@@ -85,11 +85,8 @@ def getEuclidDist(hist1, hist2):
 
 	return dist
 
-
-if __name__ == "__main__":
-
-	NUM_BINS = 8
-
+# Classifies the histograms in the ImClass directory 
+def nearestNeighborHistogram(NUM_BINS = 8):
 	# Lists to hold the histograms for the images and their respective class labels
 	train_img_histograms = []
 	train_img_labels = []
@@ -121,19 +118,13 @@ if __name__ == "__main__":
 			train_img_labels.append("insidecity")
 			# print("insidecity")
 
-		# cv2.imshow(filename, img)
-		# cv2.waitKey(0)
-
 	# Get a list of all file paths to test images in ImClass directory
 	test_img_dir = glob.glob('ImClass/*test*.jpg')
-
-	# print(test_img_dir)
-	# print(len(test_img_dir))
-	# exit()
 
 	# Lists to hold the file names for the images and their respective class labels
 	test_img_names = []
 	test_img_labels = []
+	num_correct = 0
 
 	print("Classifying test images")
 
@@ -146,25 +137,149 @@ if __name__ == "__main__":
 		hist = getHist(img, NUM_BINS)
 
 		# Figure out which histogram in the training list has the smallest distance to the current image
-		best_dist = 9999999999 # Very large best distance value
+		best_dist = 9999999999 # Very large best distance value to start
 		idx = 0
-		# print("Yeet: " + str(len(train_img_histograms)))
-		# exit()
+
 		for i in range(len(train_img_histograms)):
 			new_dist = getEuclidDist(hist, train_img_histograms[i])
-			# print(new_dist)
 
 			# If a new smallest distance has been found save the index of the image and update best_dist
 			if new_dist < best_dist:
 				best_dist = new_dist
 				idx = i
 		
-		test_img_names.append(filename)
-		test_img_labels.append(train_img_labels[idx])
+		# Get the label from the training label list
+		label = train_img_labels[idx]
 
-		print(str(filename[8:]) + " has been assigned to class " + str(train_img_labels[idx]))
+		# Store filename and its classification
+		test_img_names.append(filename)
+		test_img_labels.append(label)
+
+		print(str(filename[8:]) + " has been assigned to class " + label)
+
+		# Check if the label is correct
+		if label in filename:
+			num_correct += 1
 
 		cv2.imshow(filename[8:], img)
 		cv2.waitKey(0)
+
+	print("Accuracy = " + str(num_correct/len(test_img_dir)))
+
+# Classifies the histograms in the ImClass directory using the 3 nearest neighbors
+def threeNearestNeighborHistogram(NUM_BINS = 8):
+	# Lists to hold the histograms for the images and their respective class labels
+	train_img_histograms = []
+	train_img_labels = []
+
+	# Get a list of all file paths to training images in ImClass directory
+	train_img_dir = glob.glob('ImClass/*train*.jpg')
+
+	print("Getting training data histograms")
+
+	# Loop through the training images in the directory
+	for filename in train_img_dir:
+		# Read in the image
+		img = cv2.imread(filename)
+
+		# Compute the histogram
+		hist = getHist(img, NUM_BINS)
+
+		# Append the histogram to the training img list
+		train_img_histograms.append(hist)
+
+		# Check which class the image is and append that class to labels list
+		if "coast" in filename:
+			train_img_labels.append("coast")
+			# print("coast")
+		elif "forest" in filename:
+			train_img_labels.append("forest")
+			# print("forest")
+		elif "insidecity" in filename:
+			train_img_labels.append("insidecity")
+			# print("insidecity")
+
+	# Get a list of all file paths to test images in ImClass directory
+	test_img_dir = glob.glob('ImClass/*test*.jpg')
+
+	# Lists to hold the file names for the images and their respective class labels
+	test_img_names = []
+	test_img_labels = []
+	num_correct = 0
+
+	print("Classifying test images based on 3 nearest neighbors")
+
+	# Loop through the testing images in the directory
+	for filename in test_img_dir:
+		# Read in the image
+		img = cv2.imread(filename)
+
+		# Compute the histogram
+		hist = getHist(img, NUM_BINS)
+
+		# Figure out which histogram in the training list has the smallest distance to the current image
+		first_dist = 9999999999 # Very large best distance value to start
+		second_dist = 9999999999 # Very large best distance value to start
+		third_dist = 9999999999 # Very large best distance value to start
+		idx_1 = 0
+		idx_2 = 0
+		idx_3 = 0
+
+		for i in range(len(train_img_histograms)):
+			new_dist = getEuclidDist(hist, train_img_histograms[i])
+
+			# Check if the dist is better than the 1st, 2nd, and 3rd best distances 
+			if new_dist < first_dist:
+				first_dist = new_dist
+				idx_1 = i
+			elif new_dist < second_dist:
+				second_dist = new_dist
+				idx_2 = i
+			elif new_dist < third_dist:
+				third_dist = new_dist
+				idx_3 = i
+
+		
+		# Get the labels from the training label list
+		label_1 = train_img_labels[idx_1]
+		label_2 = train_img_labels[idx_2]
+		label_3 = train_img_labels[idx_3]
+
+		print("Class 1: " + label_1)
+		print("Class 2: " + label_2)
+		print("Class 3: " + label_3)
+
+		# Determine which class the histogram should be 
+		if label_1 == label_2 or label_1 == label_3:
+			final_label = label_1
+		# Can only not be label 1 if label 2 and label 3 are the same and label 1 is not
+		elif label_2 == label_3:
+			final_label = label_2
+		else:
+			final_label = label_1
+
+		# Store filename and its classification
+		test_img_names.append(filename)
+		test_img_labels.append(final_label)
+
+		print(str(filename[8:]) + " has been assigned to class " + final_label + "\n")
+
+		# Check if the label is correct
+		if final_label in filename:
+			num_correct += 1
+
+		cv2.imshow(filename[8:], img)
+		cv2.waitKey(0)
+
+	print("Accuracy = " + str(num_correct/len(test_img_dir)))
+
+
+if __name__ == "__main__":
+
+	NUM_BINS = 8
+
+	threeNearestNeighborHistogram(NUM_BINS)
+
+	
 
 
