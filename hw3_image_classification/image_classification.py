@@ -401,11 +401,9 @@ def getPixelEuclidDist(r1, g1, b1, r2, g2, b2):
 
 	return distance
 
-
-if __name__ == "__main__":
-
-	NUM_BINS = 8
-
+# Reads images out of sky directory and classifies pixels in test images as sky or not sky 
+# based on the training image
+def skyClassification():
 	sky_img = cv2.imread("sky/sky_train.jpg")
 
 	no_sky_img = cv2.imread("sky/no_sky_train.jpg")
@@ -527,9 +525,12 @@ if __name__ == "__main__":
 		cv2.waitKey(0)
 
 
+if __name__ == "__main__":
 
+	NUM_BINS = 8
 
+	# Classify the images in the ImClass directory
+	threeNearestNeighborHistogram(NUM_BINS)
 
-	
-
-
+	# Classify pixels in images of sky directory
+	skyClassification()
